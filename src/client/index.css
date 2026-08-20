@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: Fraunces, Georgia, serif;
+  --color-cream: #f3ebe0;
+  --color-paper: #fffdf8;
+  --color-ink: #243028;
+  --color-sage: #3f5e4a;
+  --color-sage-dark: #2c4435;
+  --color-terra: #a24b38;
+  --color-mist: #d5ddd0;
+  --color-line: #e4d9cb;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+button,
+a {
+  font-family: inherit;
+}
+
+.font-serif {
+  font-family: var(--font-serif);
+}
+
+@keyframes wizard-in-forward {
+  from {
+    opacity: 0;
+    transform: translateX(48px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes wizard-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-48px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes wizard-card-pop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.wizard-slide-forward {
+  animation: wizard-in-forward 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.wizard-slide-back {
+  animation: wizard-in-back 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.wizard-card-in {
+  animation: wizard-card-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

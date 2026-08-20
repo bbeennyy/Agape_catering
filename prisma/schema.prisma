@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  sortOrder Int        @default(0)
+  photoUrl  String?
+  active    Boolean    @default(true)
+  items     MenuItem[]
+  rules     PackageRule[]
+}
+
+model MenuItem {
+  id          String   @id @default(cuid())
+  name        String
+  description String   @default("")
+  photoUrl    String?
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  priceCents  Int?
+  priceUnit   String   @default("PER_PERSON")
+  isAddOn     Boolean  @default(false)
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+}
+
+model Package {
+  id            String        @id @default(cuid())
+  name          String
+  slug          String        @unique
+  description   String        @default("")
+  photoUrl      String?
+  priceCents    Int?
+  priceUnit     String        @default("PER_PERSON")
+  includesNotes String        @default("")
+  sortOrder     Int           @default(0)
+  active        Boolean       @default(true)
+  rules         PackageRule[]
+}
+
+model PackageRule {
+  id         String   @id @default(cuid())
+  packageId  String
+  package    Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  min        Int
+  max        Int
+  extraCents Int      @default(0)
+}
+
+model ChargeTemplate {
+  id          String  @id @default(cuid())
+  name        String
+  description String  @default("")
+  amountCents Int
+  unit        String  @default("FLAT")
+  sortOrder   Int     @default(0)
+  active      Boolean @default(true)
+}
+
+model BusinessSettings {
+  id             String  @id @default("default")
+  businessName   String
+  tagline        String
+  address        String
+  phone          String
+  email          String
+  taxRateBps     Int     @default(0)
+  depositCents   Int     @default(20000)
+  balanceDueDays Int     @default(10)
+  terms          String
+  logoUrl        String?
+}
+
+model Event {
+  id           String    @id @default(cuid())
+  publicToken  String    @unique
+  clientName   String
+  phone        String    @default("")
+  email        String    @default("")
+  contactName  String    @default("")
+  venue        String    @default("")
+  eventName    String    @default("")
+  eventDate    String
+  proposalDate String    @default("")
+  guestCount   Int
+  status       String    @default("draft")
+  notes        String    @default("")
+  wizardJson   String    @default("{}")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  invoices     Invoice[]
+  payments     Payment[]
+}
+
+model Invoice {
+  id         String        @id @default(cuid())
+  eventId    String
+  event      Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  version    Int
+  status     String        @default("draft")
+  isCurrent  Boolean       @default(true)
+  taxRateBps Int
+  notes      String        @default("")
+  terms      String        @default("")
+  createdAt  DateTime      @default(now())
+  lines      InvoiceLine[]
+}
+
+model InvoiceLine {
+  id           String  @id @default(cuid())
+  invoiceId    String
+  invoice      Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sortOrder    Int
+  type         String
+  label        String
+  description  String  @default("")
+  qty          Int     @default(1)
+  unitCents    Int     @default(0)
+  packageSlug  String?
+  itemId       String?
+  categoryName String?
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  amountCents Int
+  type        String
+  method      String   @default("manual")
+  stripeId    String?
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+}
