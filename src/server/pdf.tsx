@@ -92,9 +92,9 @@ function PdfDoc({ invoice, totals, settings }: Payload) {
         </View>
         {invoice.lines.map((line) => {
           const qty = line.type === "TBD" ? "—" : String(line.qty);
-          const total =
+              const total =
             line.type === "TBD"
-              ? "TBD"
+              ? "Quote later"
               : line.type === "PERCENT_DISCOUNT"
                 ? `${(line.unitCents / 100).toFixed(1)}%`
                 : formatMoney(
@@ -107,7 +107,7 @@ function PdfDoc({ invoice, totals, settings }: Payload) {
               <View style={styles.colDesc}>
                 <Text>
                   {line.label}
-                  {line.type === "PER_PERSON" ? `  ${formatMoney(line.unitCents)} pp` : ""}
+                  {line.type === "PER_PERSON" ? `  ${formatMoney(line.unitCents)} per person` : ""}
                 </Text>
                 {line.description ? <Text style={styles.desc}>{line.description}</Text> : null}
               </View>

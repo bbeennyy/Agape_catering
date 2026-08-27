@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type InputHTMLAttributes } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, publicApi, type Catalog, type MenuItem, type Package } from "../api";
 import { Money, Photo } from "../components/ui";
-import { calculateInvoice, formatMoneyShort } from "../../shared/pricing";
+import { calculateInvoice, formatMoneyShort, formatPriceWithUnit } from "../../shared/pricing";
 
 type Dinner = { meatIds: string[]; sideIds: string[]; breadId: string | null };
 
@@ -26,8 +26,8 @@ const STEP_COPY: Record<Step, { title: string; hint: string }> = {
   meats: { title: "Pick 2 meats", hint: "Dinner includes two." },
   sides: { title: "Pick 2 sides", hint: "Dinner includes two." },
   bread: { title: "Pick your bread", hint: "Choose one." },
-  salads: { title: "Add a salad?", hint: "Optional · $3 pp each. Skip if none." },
-  addons: { title: "Hors d'oeuvre add-ons", hint: "On top of the $12 pp package." },
+  salads: { title: "Add a salad?", hint: "Optional · $3 per person each. Skip if none." },
+  addons: { title: "Hors d'oeuvre add-ons", hint: "On top of the $12 per person package." },
   desserts: { title: "Dessert bar", hint: "Pick what you want listed. Price comes later." },
   cake: { title: "Wedding cake", hint: "Tap a starting style." },
   drinks: { title: "Pick 2 drinks", hint: "Water is always included." },
@@ -441,7 +441,7 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
                       ? "Quoted later"
                       : p.priceUnit === "FLAT"
                         ? `${formatMoneyShort(p.priceCents)} starting`
-                        : `${formatMoneyShort(p.priceCents)} pp`,
+                        : formatPriceWithUnit(p.priceCents, p.priceUnit),
                 }))}
               selected={packageSlugs}
               onToggle={togglePkg}
@@ -602,8 +602,8 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
                     <span>{pkgMap[s]?.name ?? s}</span>
                     <span className="text-ink/50">
                       {pkgMap[s]?.priceCents == null
-                        ? "TBD"
-                        : formatMoneyShort(pkgMap[s]!.priceCents!)}
+                        ? "Quoted later"
+                        : formatPriceWithUnit(pkgMap[s]!.priceCents!, pkgMap[s]!.priceUnit)}
                     </span>
                   </li>
                 ))}
@@ -624,7 +624,7 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
                 ) : null}
                 {saladIds.map((id) => (
                   <li key={id} className="text-ink/70">
-                    Salad · {itemsByCat.salads?.find((x) => x.id === id)?.name} · $3 pp
+                    Salad · {itemsByCat.salads?.find((x) => x.id === id)?.name} · $3 per person
                   </li>
                 ))}
               </ul>
@@ -646,7 +646,7 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
             <div className="font-medium">
               {estimate ? <Money cents={estimate.totalCents} /> : "—"}
               {packageSlugs.includes("dessert-bar") ? (
-                <span className="ml-2 text-xs font-normal text-ink/50">+ dessert TBD</span>
+                <span className="ml-2 text-xs font-normal text-ink/50">+ dessert quoted later</span>
               ) : null}
             </div>
           </div>
@@ -702,7 +702,7 @@ function toCards(items: MenuItem[], withPrice = false): CardItem[] {
     photoUrl: item.photoUrl,
     priceLabel:
       withPrice && item.priceCents != null
-        ? `${formatMoneyShort(item.priceCents)} pp`
+        ? formatPriceWithUnit(item.priceCents, item.priceUnit)
         : undefined,
   }));
 }

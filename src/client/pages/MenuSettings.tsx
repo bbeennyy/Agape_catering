@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { api, uploadFile, type Catalog, type MenuItem } from "../api";
 import { Photo } from "../components/ui";
-import { formatMoneyShort } from "../../shared/pricing";
+import { PRICE_UNITS } from "../../shared/constants";
+import { humanizeCode } from "../../shared/labels";
+import { dollarsToCents, formatPriceWithUnit } from "../../shared/pricing";
 
 export function MenuSettings() {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -69,23 +71,43 @@ export function MenuSettings() {
                 <input
                   type="number"
                   step="0.01"
+                  min={0}
                   className="ml-2 w-28 rounded border border-line px-2 py-1"
                   defaultValue={p.priceCents == null ? "" : p.priceCents / 100}
                   onBlur={async (e) => {
                     const v = e.target.value;
                     await api(`/packages/${p.id}`, {
                       method: "PATCH",
-                      body: JSON.stringify({ priceCents: v === "" ? null : Math.round(Number(v) * 100) }),
+                      body: JSON.stringify({ priceCents: v === "" ? null : dollarsToCents(v) }),
                     });
                     setMsg("Package price saved");
                   }}
                 />
               </label>
-              <span className="text-xs text-ink/50">{p.priceUnit}</span>
+              <label className="text-sm">
+                Billed
+                <select
+                  className="ml-2 rounded border border-line px-2 py-1"
+                  defaultValue={p.priceUnit}
+                  onChange={async (e) => {
+                    await api(`/packages/${p.id}`, {
+                      method: "PATCH",
+                      body: JSON.stringify({ priceUnit: e.target.value }),
+                    });
+                    setMsg("Package billing saved");
+                  }}
+                >
+                  {PRICE_UNITS.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {humanizeCode(unit)}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           ))}
         </div>
-      <p className="mt-2 text-xs text-ink/50">Dinner should stay 18. Empty dessert price means TBD.</p>
+      <p className="mt-2 text-xs text-ink/50">Dinner should stay 18. Empty dessert price means quoted later.</p>
       </div>
 
       {category ? (
@@ -135,7 +157,9 @@ export function MenuSettings() {
                       <div className="font-medium">{item.name}</div>
                       <div className="text-xs text-ink/55">{item.description || "No description"}</div>
                       <div className="mt-1 text-sm text-terra">
-                        {item.priceCents == null ? "Included / no extra price" : `${formatMoneyShort(item.priceCents)} ${item.priceUnit === "FLAT" ? "" : "pp"}`}
+                        {item.priceCents == null
+                          ? "Included / no extra price"
+                          : formatPriceWithUnit(item.priceCents, item.priceUnit)}
                       </div>
                     </div>
                     <div className="flex gap-2 text-sm">
@@ -226,20 +250,35 @@ function ItemForm({
         value={draft.description}
         onChange={(e) => setDraft({ ...draft, description: e.target.value })}
       />
-      <label className="text-sm sm:col-span-2">
+      <label className="text-sm">
         Price $ (empty = none)
         <input
           className="ml-2 w-28 rounded border border-line px-2 py-1"
           type="number"
           step="0.01"
+          min={0}
           value={draft.priceCents == null ? "" : draft.priceCents / 100}
           onChange={(e) =>
             setDraft({
               ...draft,
-              priceCents: e.target.value === "" ? null : Math.round(Number(e.target.value) * 100),
+              priceCents: e.target.value === "" ? null : dollarsToCents(e.target.value),
             })
           }
         />
+      </label>
+      <label className="text-sm">
+        Billed as
+        <select
+          className="ml-2 rounded border border-line px-2 py-1"
+          value={draft.priceUnit}
+          onChange={(e) => setDraft({ ...draft, priceUnit: e.target.value })}
+        >
+          {PRICE_UNITS.map((unit) => (
+            <option key={unit} value={unit}>
+              {humanizeCode(unit)}
+            </option>
+          ))}
+        </select>
       </label>
 
       <div className="sm:col-span-2">

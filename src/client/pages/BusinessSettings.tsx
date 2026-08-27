@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type Settings } from "../api";
+import { dollarsToCents } from "../../shared/pricing";
 
 export function BusinessSettings() {
   const [s, setS] = useState<Settings | null>(null);
@@ -62,7 +63,7 @@ export function BusinessSettings() {
           className="mt-1 w-full rounded-lg border border-line px-3 py-2"
           value={s.depositCents / 100}
           onChange={(e) =>
-            setS({ ...s, depositCents: Math.round(Number(e.target.value || 0) * 100) })
+            setS({ ...s, depositCents: dollarsToCents(e.target.value || 0) })
           }
         />
       </label>

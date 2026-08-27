@@ -199,7 +199,7 @@ export function EventCalendar({
                 {dayEvents.map((ev) => {
                   const label = ev.eventName?.trim() || ev.clientName;
                   const price =
-                    ev.totals != null ? formatMoneyShort(ev.totals.totalCents) : "TBD";
+                    ev.totals != null ? formatMoneyShort(ev.totals.totalCents) : "Quoted later";
                   return (
                     <Link
                       key={ev.id}
