@@ -4,6 +4,7 @@ import { api, type ChargeTemplate, type InvoiceLine } from "../api";
 import { Money } from "../components/ui";
 import { LINE_TYPES } from "../../shared/constants";
 import { humanizeCode } from "../../shared/labels";
+import { chargeQty } from "../../shared/service";
 import {
   calculateInvoice,
   centsToDollars,
@@ -297,7 +298,7 @@ export function InvoicePage() {
                   type: t.unit === "PER_PERSON" ? "PER_PERSON" : "FLAT",
                   label: t.name,
                   description: t.description,
-                  qty: t.unit === "PER_PERSON" ? ev.guestCount : 1,
+                  qty: chargeQty(t.unit, ev.guestCount),
                   unitCents: t.amountCents,
                 },
               ])

@@ -10,6 +10,7 @@ export function MenuSettings() {
   const [catId, setCatId] = useState<string>("");
   const [editing, setEditing] = useState<MenuItem | null>(null);
   const [newName, setNewName] = useState("");
+  const [newCat, setNewCat] = useState("");
   const [msg, setMsg] = useState("");
 
   async function reload() {
@@ -45,7 +46,7 @@ export function MenuSettings() {
       </p>
       {msg ? <p className="mt-2 text-sm text-sage">{msg}</p> : null}
 
-      <div className="mt-6 flex flex-wrap gap-2">
+      <div className="mt-6 flex flex-wrap items-center gap-2">
         {catalog.categories.map((c) => (
           <button
             key={c.id}
@@ -58,6 +59,31 @@ export function MenuSettings() {
             {c.name}
           </button>
         ))}
+        <form
+          className="flex gap-2"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!newCat.trim()) return;
+            const row = await api<{ id: string }>("/categories", {
+              method: "POST",
+              body: JSON.stringify({ name: newCat.trim() }),
+            });
+            setNewCat("");
+            await reload();
+            setCatId(row.id);
+            setMsg("Category added — add items below");
+          }}
+        >
+          <input
+            className="rounded-lg border border-line px-3 py-1.5 text-sm"
+            placeholder="New category"
+            value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+          />
+          <button className="rounded-full border border-line px-3 py-1.5 text-sm" type="submit">
+            Add category
+          </button>
+        </form>
       </div>
 
       <div className="mt-6 rounded-2xl border border-line bg-paper p-4">
@@ -107,7 +133,10 @@ export function MenuSettings() {
             </div>
           ))}
         </div>
-      <p className="mt-2 text-xs text-ink/50">Dinner should stay 18. Empty dessert price means quoted later.</p>
+      <p className="mt-2 text-xs text-ink/50">
+        Dinner should stay 18. Cake is $92.50 per layer (two layers = $185). Empty dessert price
+        means quoted later.
+      </p>
       </div>
 
       {category ? (

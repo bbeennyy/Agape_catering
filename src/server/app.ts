@@ -44,6 +44,9 @@ const wizardSchema = z.object({
   dessertIds: z.array(z.string()),
   drinkIds: z.array(z.string()),
   cakeNotes: z.string().optional(),
+  cakeLayers: z.number().int().min(1).optional(),
+  cakeFlavor: z.string().optional(),
+  tableSettingIds: z.array(z.string()).optional(),
   chargeTemplateIds: z.array(z.string()),
 });
 

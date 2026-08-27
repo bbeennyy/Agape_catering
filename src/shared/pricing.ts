@@ -157,6 +157,8 @@ export function formatPriceWithUnit(cents: number | null | undefined, unit?: str
   const money = formatMoneyShort(cents);
   if (unit === "PER_PERSON") return `${money} per person`;
   if (unit === "PER_UNIT") return `${money} per unit`;
+  if (unit === "PER_LAYER") return `${money} per layer`;
+  if (unit === "PER_SERVER") return `${money} per server`;
   if (unit === "NONE") return "Included";
   return money;
 }

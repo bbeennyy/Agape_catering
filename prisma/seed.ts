@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 const TERMS = `Prices are subject to change due to product availability.
 A $200 non refundable deposit is required on all orders.
 All remaining balances are due 10 days prior to the event date.
-Balance does not include server gratuity.`;
+Server gratuity is $170 per server, one server per 25 guests ($850 for 125 guests).`;
 
 async function main() {
   const email = process.env.ADMIN_EMAIL ?? "laura@agape.local";
@@ -21,7 +21,7 @@ async function main() {
 
   await prisma.businessSettings.upsert({
     where: { id: "default" },
-    update: {},
+    update: { terms: TERMS },
     create: {
       id: "default",
       businessName: "Agape Catering",
@@ -46,6 +46,7 @@ async function main() {
     { slug: "sauces", name: "Sauces", sortOrder: 70 },
     { slug: "addons", name: "Hors d'oeuvre add-ons", sortOrder: 80 },
     { slug: "drinks", name: "Drinks", sortOrder: 90 },
+    { slug: "table-settings", name: "Table settings", sortOrder: 100 },
   ];
 
   const catIds: Record<string, string> = {};
@@ -222,6 +223,33 @@ async function main() {
     { name: "Water", description: "Cucumber/lemon. Always included." },
   ]);
 
+  await items("table-settings", [
+    {
+      name: "Plateware",
+      description: "Included. High-quality disposable plates.",
+    },
+    {
+      name: "Plasticware",
+      description: "Included. High-quality disposable utensils.",
+    },
+    {
+      name: "Glasses",
+      description: "Included. Disposable cups.",
+    },
+    {
+      name: "Napkins",
+      description: "Included.",
+    },
+    {
+      name: "Silverware",
+      description: "Optional upgrade from disposable utensils.",
+    },
+    {
+      name: "Tablecloths",
+      description: "Optional linens for the tables.",
+    },
+  ]);
+
   const packages = [
     {
       slug: "grazing",
@@ -264,10 +292,10 @@ async function main() {
     {
       slug: "cake",
       name: "Wedding Cake",
-      description: "2 tier / 6 layer, starting price. Flavor notes on the invoice.",
-      priceCents: 18500,
-      priceUnit: "FLAT",
-      includesNotes: "Starting at $185. Vanilla cake / vanilla buttercream unless noted.",
+      description: "$92.50 per layer. Two layers is $185. Vanilla, chocolate, or mixed flavors.",
+      priceCents: 9250,
+      priceUnit: "PER_LAYER",
+      includesNotes: "Priced per layer. Two layers is $185.",
       sortOrder: 50,
     },
   ];
@@ -292,15 +320,23 @@ async function main() {
 
   const charges = [
     {
+      name: "Server gratuity",
+      description:
+        "One server per 25 guests at $170 each. $850 for 125 guests.",
+      amountCents: 17000,
+      unit: "PER_SERVER",
+      sortOrder: 5,
+    },
+    {
       name: "Setup and Service Fee",
-      description: "Based on guest count. Example: $850 for 125 guests.",
-      amountCents: 85000,
+      description: "Optional setup quoted per event.",
+      amountCents: 0,
       unit: "FLAT",
       sortOrder: 10,
     },
     {
       name: "Servers / personnel",
-      description: "Add the amount you quoted for staff. Gratuity is not included.",
+      description: "Staff wages if quoted separately from gratuity.",
       amountCents: 0,
       unit: "FLAT",
       sortOrder: 20,

@@ -23,7 +23,8 @@ export function ChargesSettings() {
     <div>
       <h1 className="font-serif text-3xl">Extra charges</h1>
       <p className="mt-1 text-sm text-ink/60">
-        Setup, servers, travel. Tap these onto an invoice. Gratuity stays off unless you add it.
+        Setup, travel, extra staff. Server gratuity is added automatically — $170 per server, one
+        server every 25 guests ($850 for 125).
       </p>
       <form
         className="mt-6 flex flex-wrap gap-2"

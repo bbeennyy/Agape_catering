@@ -4,6 +4,8 @@ const LABELS: Record<string, string> = {
   PER_PERSON: "Per person",
   FLAT: "Flat fee",
   PER_UNIT: "Per unit",
+  PER_LAYER: "Per layer",
+  PER_SERVER: "Per server",
   PERCENT_DISCOUNT: "Percent discount",
   FIXED_DISCOUNT: "Dollar discount",
   TBD: "Quote later",

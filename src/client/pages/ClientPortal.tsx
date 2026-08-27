@@ -55,6 +55,9 @@ type PublicEvent = {
     dessertIds?: string[];
     drinkIds?: string[];
     cakeNotes?: string;
+    cakeLayers?: number;
+    cakeFlavor?: string;
+    tableSettingIds?: string[];
     chargeTemplateIds?: string[];
   } | null;
 };
@@ -170,13 +173,19 @@ export function ClientPortal() {
                   <td className="px-4 py-3">
                     {line.type === "TBD"
                       ? "Quote later"
-                      : formatMoney(
-                          invoiceLineAmountCents(
+                      : invoiceLineAmountCents(
                             data.invoice!.lines as InvoiceLineInput[],
                             i,
                             data.event.guestCount,
-                          ),
-                        )}
+                          ) === 0
+                        ? "Included"
+                        : formatMoney(
+                            invoiceLineAmountCents(
+                              data.invoice!.lines as InvoiceLineInput[],
+                              i,
+                              data.event.guestCount,
+                            ),
+                          )}
                   </td>
                 </tr>
               ))}
