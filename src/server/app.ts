@@ -352,15 +352,15 @@ api.post("/charges", async (c) => {
 api.patch("/charges/:id", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json();
+  const data: Record<string, unknown> = {};
+  if (body.name !== undefined) data.name = body.name;
+  if (body.description !== undefined) data.description = body.description;
+  if (body.amountCents !== undefined) data.amountCents = Number(body.amountCents);
+  if (body.unit !== undefined) data.unit = body.unit;
+  if (body.active !== undefined) data.active = body.active;
   const row = await prisma.chargeTemplate.update({
     where: { id },
-    data: {
-      name: body.name,
-      description: body.description,
-      amountCents: body.amountCents === undefined ? undefined : Number(body.amountCents),
-      unit: body.unit,
-      active: body.active,
-    },
+    data,
   });
   return c.json(row);
 });

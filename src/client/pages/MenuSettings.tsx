@@ -3,7 +3,7 @@ import { api, uploadFile, type Catalog, type MenuItem } from "../api";
 import { Photo } from "../components/ui";
 import { PRICE_UNITS } from "../../shared/constants";
 import { humanizeCode } from "../../shared/labels";
-import { dollarsToCents, formatPriceWithUnit } from "../../shared/pricing";
+import { dollarsToCents } from "../../shared/pricing";
 
 export function MenuSettings() {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -134,8 +134,8 @@ export function MenuSettings() {
           ))}
         </div>
       <p className="mt-2 text-xs text-ink/50">
-        Dinner should stay 18. Cake is $92.50 per layer (two layers = $185). Empty dessert price
-        means quoted later.
+        Dinner should stay 18. Cake is $92.50 per layer (two layers = $185). Empty item price means
+        no extra charge — same for table settings.
       </p>
       </div>
 
@@ -181,23 +181,62 @@ export function MenuSettings() {
                     onSave={saveItem}
                   />
                 ) : (
-                  <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                    <div>
+                  <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-40 flex-1">
                       <div className="font-medium">{item.name}</div>
                       <div className="text-xs text-ink/55">{item.description || "No description"}</div>
-                      <div className="mt-1 text-sm text-terra">
-                        {item.priceCents == null
-                          ? "Included / no extra price"
-                          : formatPriceWithUnit(item.priceCents, item.priceUnit)}
-                      </div>
                     </div>
-                    <div className="flex gap-2 text-sm">
-                      <button type="button" className="text-sage" onClick={() => setEditing(item)}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="text-sm">
+                        Price $
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          className="ml-2 w-24 rounded border border-line px-2 py-1"
+                          defaultValue={item.priceCents == null ? "" : item.priceCents / 100}
+                          key={`${item.id}-price-${item.priceCents}`}
+                          onBlur={async (e) => {
+                            const v = e.target.value;
+                            await api(`/items/${item.id}`, {
+                              method: "PATCH",
+                              body: JSON.stringify({
+                                priceCents: v === "" ? null : dollarsToCents(v),
+                              }),
+                            });
+                            setMsg("Price saved");
+                            await reload();
+                          }}
+                        />
+                      </label>
+                      <label className="text-sm">
+                        Billed
+                        <select
+                          className="ml-2 rounded border border-line px-2 py-1"
+                          defaultValue={item.priceUnit}
+                          key={`${item.id}-unit-${item.priceUnit}`}
+                          onChange={async (e) => {
+                            await api(`/items/${item.id}`, {
+                              method: "PATCH",
+                              body: JSON.stringify({ priceUnit: e.target.value }),
+                            });
+                            setMsg("Billing saved");
+                            await reload();
+                          }}
+                        >
+                          {PRICE_UNITS.map((unit) => (
+                            <option key={unit} value={unit}>
+                              {humanizeCode(unit)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button type="button" className="text-sm text-sage" onClick={() => setEditing(item)}>
                         Edit
                       </button>
                       <button
                         type="button"
-                        className="text-terra"
+                        className="text-sm text-terra"
                         onClick={async () => {
                           if (!confirm(`Delete ${item.name}?`)) return;
                           await api(`/items/${item.id}`, { method: "DELETE" });

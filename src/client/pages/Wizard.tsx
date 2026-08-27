@@ -48,7 +48,7 @@ const STEP_COPY: Record<Step, { title: string; hint: string }> = {
   drinks: { title: "Pick 2 drinks", hint: "Water is always included." },
   table: {
     title: "Table settings",
-    hint: "Plates, cups, and napkins are included. Add silverware or linens if you want them.",
+    hint: "Tap what you want on the tables. Priced items add to the total.",
   },
   service: { title: "Service extras", hint: "Gratuity is already in the total — one server per 25 guests." },
   review: { title: "Looking good?", hint: "Confirm, then submit." },
@@ -237,11 +237,13 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
       }
     }
     const servers = serverCountForGuests(g);
+    const grat = catalog.charges.find((c) => isAutoGratuity(c));
+    const perServer = grat?.amountCents ?? GRATUITY_PER_SERVER_CENTS;
     lines.push({
       type: "FLAT" as const,
-      label: "Server gratuity",
+      label: grat?.name ?? "Server gratuity",
       qty: servers,
-      unitCents: GRATUITY_PER_SERVER_CENTS,
+      unitCents: perServer,
     });
     for (const id of chargeTemplateIds) {
       const t = catalog.charges.find((c) => c.id === id);
@@ -652,7 +654,7 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
             <PickGrid
               items={toCards(itemsByCat[TABLE_SETTINGS_SLUG] ?? [], true).map((item) => ({
                 ...item,
-                priceLabel: item.priceLabel ?? "Included",
+                priceLabel: item.priceLabel ?? "No extra charge",
               }))}
               selected={tableSettingIds}
               onToggle={(id) =>
@@ -662,8 +664,8 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
               }
               selectedHint={
                 tableSettingIds.length
-                  ? `${tableSettingIds.length} selected · plates are included`
-                  : "Optional — skip if you only need the included disposables later"
+                  ? `${tableSettingIds.length} selected`
+                  : "Pick what you want on the tables"
               }
               allowEmpty
             />
@@ -681,7 +683,12 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
                       {serverCountForGuests(guestCount) === 1 ? "" : "s"} for {guestCount} guests.
                     </p>
                   </div>
-                  <Money cents={gratuityCentsForGuests(guestCount)} />
+                  <Money
+                    cents={gratuityCentsForGuests(
+                      guestCount,
+                      catalog.charges.find((c) => isAutoGratuity(c))?.amountCents,
+                    )}
+                  />
                 </div>
               </div>
               {catalog.charges
@@ -771,9 +778,13 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
                   const item = itemsByCat[TABLE_SETTINGS_SLUG]?.find((x) => x.id === id);
                   if (!item) return null;
                   return (
-                    <li key={id} className="text-ink/70">
-                      Table · {item.name}
-                      {item.priceCents == null ? " · included" : ""}
+                    <li key={id} className="flex justify-between gap-3 text-ink/70">
+                      <span>Table · {item.name}</span>
+                      <span className="text-ink/50">
+                        {item.priceCents == null
+                          ? "No extra charge"
+                          : formatPriceWithUnit(item.priceCents, item.priceUnit)}
+                      </span>
                     </li>
                   );
                 })}
@@ -783,7 +794,12 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
                     {serverCountForGuests(guestCount) === 1 ? "" : "s"}
                   </span>
                   <span className="text-ink/50">
-                    {formatMoney(gratuityCentsForGuests(guestCount))}
+                    {formatMoney(
+                      gratuityCentsForGuests(
+                        guestCount,
+                        catalog.charges.find((c) => isAutoGratuity(c))?.amountCents,
+                      ),
+                    )}
                   </span>
                 </li>
               </ul>

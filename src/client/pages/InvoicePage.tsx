@@ -4,7 +4,7 @@ import { api, type ChargeTemplate, type InvoiceLine } from "../api";
 import { Money } from "../components/ui";
 import { LINE_TYPES } from "../../shared/constants";
 import { humanizeCode } from "../../shared/labels";
-import { chargeQty } from "../../shared/service";
+import { chargeQty, isAutoGratuity } from "../../shared/service";
 import {
   calculateInvoice,
   centsToDollars,
@@ -290,22 +290,27 @@ export function InvoicePage() {
         >
           Add $ discount
         </button>
-        {charges.map((t) => (
+        {charges
+          .filter((t) => !isAutoGratuity(t))
+          .map((t) => (
           <button
             key={t.id}
             type="button"
             className="rounded-full border border-line px-3 py-1.5 text-sm"
             onClick={() =>
-              setLines((cur) => [
-                ...cur,
-                {
-                  type: t.unit === "PER_PERSON" ? "PER_PERSON" : "FLAT",
-                  label: t.name,
-                  description: t.description,
-                  qty: chargeQty(t.unit, ev.guestCount),
-                  unitCents: t.amountCents,
-                },
-              ])
+              setLines((cur) => {
+                if (cur.some((line) => line.label === t.name)) return cur;
+                return [
+                  ...cur,
+                  {
+                    type: t.unit === "PER_PERSON" ? "PER_PERSON" : "FLAT",
+                    label: t.name,
+                    description: t.description,
+                    qty: chargeQty(t.unit, ev.guestCount),
+                    unitCents: t.amountCents,
+                  },
+                ];
+              })
             }
           >
             + {t.name}

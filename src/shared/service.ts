@@ -32,8 +32,11 @@ export function serverCountForGuests(guestCount: number) {
   return Math.max(1, Math.ceil(n / GUESTS_PER_SERVER));
 }
 
-export function gratuityCentsForGuests(guestCount: number) {
-  return serverCountForGuests(guestCount) * GRATUITY_PER_SERVER_CENTS;
+export function gratuityCentsForGuests(
+  guestCount: number,
+  perServerCents = GRATUITY_PER_SERVER_CENTS,
+) {
+  return serverCountForGuests(guestCount) * perServerCents;
 }
 
 export function cakePriceCents(layers: number) {

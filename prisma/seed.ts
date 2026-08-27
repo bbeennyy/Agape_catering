@@ -61,7 +61,16 @@ async function main() {
 
   async function items(
     slug: string,
-    names: Array<string | { name: string; description?: string; priceCents?: number; isAddOn?: boolean }>,
+    names: Array<
+      | string
+      | {
+          name: string;
+          description?: string;
+          priceCents?: number;
+          isAddOn?: boolean;
+          priceUnit?: "PER_PERSON" | "FLAT" | "PER_LAYER" | "NONE";
+        }
+    >,
   ) {
     const categoryId = catIds[slug];
     for (let i = 0; i < names.length; i++) {
@@ -75,7 +84,7 @@ async function main() {
         description: item.description ?? "",
         categoryId,
         priceCents: item.priceCents ?? (slug === "salads" ? 300 : null),
-        priceUnit: "PER_PERSON" as const,
+        priceUnit: item.priceUnit ?? "PER_PERSON",
         isAddOn: item.isAddOn ?? (slug === "addons" || slug === "salads"),
         sortOrder: (i + 1) * 10,
         active: true,
@@ -226,27 +235,28 @@ async function main() {
   await items("table-settings", [
     {
       name: "Plateware",
-      description: "Included. High-quality disposable plates.",
+      description: "Plates for the table.",
     },
     {
       name: "Plasticware",
-      description: "Included. High-quality disposable utensils.",
+      description: "Disposable utensils.",
     },
     {
       name: "Glasses",
-      description: "Included. Disposable cups.",
+      description: "Cups and glasses.",
     },
     {
       name: "Napkins",
-      description: "Included.",
+      description: "",
     },
     {
       name: "Silverware",
-      description: "Optional upgrade from disposable utensils.",
+      description: "Upgrade from disposable utensils.",
     },
     {
       name: "Tablecloths",
-      description: "Optional linens for the tables.",
+      description: "Linens for the tables.",
+      priceUnit: "FLAT",
     },
   ]);
 

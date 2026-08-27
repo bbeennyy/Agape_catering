@@ -211,18 +211,20 @@ export async function linesFromWizard(input: WizardInput): Promise<LineDraft[]> 
   }
 
   const servers = serverCountForGuests(guestCount);
+  const gratTemplates = await prisma.chargeTemplate.findMany();
+  const grat = gratTemplates.find((t) => isAutoGratuity(t));
+  const perServerCents = grat?.amountCents ?? GRATUITY_PER_SERVER_CENTS;
+  const perServerDollars = (perServerCents / 100).toFixed(perServerCents % 100 === 0 ? 0 : 2);
   lines.push({
     type: "FLAT",
-    label: "Server gratuity",
-    description: `One server per 25 guests. ${servers} server${servers === 1 ? "" : "s"} × $170.`,
+    label: grat?.name ?? "Server gratuity",
+    description: `One server per 25 guests. ${servers} server${servers === 1 ? "" : "s"} × $${perServerDollars}.`,
     qty: servers,
-    unitCents: GRATUITY_PER_SERVER_CENTS,
+    unitCents: perServerCents,
   });
 
   if (input.chargeTemplateIds.length) {
-    const templates = await prisma.chargeTemplate.findMany({
-      where: { id: { in: input.chargeTemplateIds } },
-    });
+    const templates = gratTemplates.filter((t) => input.chargeTemplateIds.includes(t.id));
     for (const t of templates) {
       if (isAutoGratuity(t)) continue;
       const qty = chargeQty(t.unit, guestCount);
