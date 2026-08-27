@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { Money } from "../components/ui";
-import type { InvoiceTotals } from "../../shared/pricing";
+import { humanizeCode } from "../../shared/labels";
+import { dollarsToCents, formatMoney, type InvoiceTotals } from "../../shared/pricing";
 
 type EventPayload = {
   event: {
@@ -96,7 +97,7 @@ export function EventPage() {
         {event.invoices.map((inv) => (
           <li key={inv.id} className="flex items-center justify-between px-4 py-3">
             <span>
-              Version {inv.version} · {inv.status}
+              Version {inv.version} · {humanizeCode(inv.status)}
               {inv.isCurrent ? " · current" : ""}
             </span>
             <Link className="text-sage" to={`/admin/events/${event.id}/invoices/${inv.id}`}>
@@ -125,7 +126,7 @@ export function EventPage() {
           await api(`/events/${event.id}/payments`, {
             method: "POST",
             body: JSON.stringify({
-              amountCents: Math.round(Number(amount) * 100),
+              amountCents: dollarsToCents(amount),
               type: "deposit",
               method: "manual",
             }),
@@ -136,6 +137,9 @@ export function EventPage() {
       >
         <input
           className="w-32 rounded-lg border border-line px-3 py-2"
+          type="number"
+          min={0}
+          step="0.01"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="200.00"
@@ -145,7 +149,7 @@ export function EventPage() {
       <ul className="mt-3 text-sm text-ink/70">
         {event.payments.map((p) => (
           <li key={p.id}>
-            {p.type} · ${(p.amountCents / 100).toFixed(2)} · {p.method}
+            {humanizeCode(p.type)} · {formatMoney(p.amountCents)} · {humanizeCode(p.method)}
           </li>
         ))}
       </ul>

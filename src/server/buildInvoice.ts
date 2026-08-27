@@ -1,5 +1,14 @@
 import { prisma } from "./db.js";
 import type { LineType } from "../shared/pricing.js";
+import {
+  cakeDescription,
+  CAKE_CENTS_PER_LAYER,
+  CAKE_DEFAULT_LAYERS,
+  chargeQty,
+  GRATUITY_PER_SERVER_CENTS,
+  isAutoGratuity,
+  serverCountForGuests,
+} from "../shared/service.js";
 
 export type WizardInput = {
   event: {
@@ -20,6 +29,9 @@ export type WizardInput = {
   dessertIds: string[];
   drinkIds: string[];
   cakeNotes?: string;
+  cakeLayers?: number;
+  cakeFlavor?: string;
+  tableSettingIds?: string[];
   chargeTemplateIds: string[];
 };
 
@@ -151,22 +163,71 @@ export async function linesFromWizard(input: WizardInput): Promise<LineDraft[]> 
 
   if (slugs.has("cake")) {
     const pkg = await prisma.package.findUnique({ where: { slug: "cake" } });
+    const layers = Math.max(1, Math.round(input.cakeLayers ?? CAKE_DEFAULT_LAYERS));
+    const unitCents = pkg?.priceCents ?? CAKE_CENTS_PER_LAYER;
     lines.push({
       type: "FLAT",
       label: pkg?.name ?? "Wedding Cake",
-      description: input.cakeNotes || pkg?.includesNotes || "2 tier / 6 layer",
-      qty: 1,
-      unitCents: pkg?.priceCents ?? 18500,
+      description:
+        input.cakeNotes ||
+        cakeDescription(layers, input.cakeFlavor) ||
+        pkg?.includesNotes ||
+        `${layers} layers`,
+      qty: layers,
+      unitCents,
       packageSlug: "cake",
     });
   }
 
-  if (input.chargeTemplateIds.length) {
-    const templates = await prisma.chargeTemplate.findMany({
-      where: { id: { in: input.chargeTemplateIds } },
+  const tableIds = input.tableSettingIds ?? [];
+  if (tableIds.length) {
+    const tableItems = await prisma.menuItem.findMany({
+      where: { id: { in: tableIds } },
+      include: { category: true },
     });
+    const included = tableItems.filter((item) => item.priceCents == null);
+    if (included.length) {
+      lines.push({
+        type: "FLAT",
+        label: "Table settings",
+        description: included.map((item) => item.name).join(", "),
+        qty: 1,
+        unitCents: 0,
+        categoryName: "Table settings",
+      });
+    }
+    for (const item of tableItems.filter((row) => row.priceCents != null)) {
+      const perPerson = item.priceUnit === "PER_PERSON";
+      lines.push({
+        type: perPerson ? "PER_PERSON" : "FLAT",
+        label: item.name,
+        description: item.description || "Table settings",
+        qty: perPerson ? guestCount : 1,
+        unitCents: item.priceCents ?? 0,
+        itemId: item.id,
+        categoryName: item.category?.name ?? "Table settings",
+      });
+    }
+  }
+
+  const servers = serverCountForGuests(guestCount);
+  const gratTemplates = await prisma.chargeTemplate.findMany();
+  const grat = gratTemplates.find((t) => isAutoGratuity(t));
+  const perServerCents = grat?.amountCents ?? GRATUITY_PER_SERVER_CENTS;
+  const perServerDollars = (perServerCents / 100).toFixed(perServerCents % 100 === 0 ? 0 : 2);
+  lines.push({
+    type: "FLAT",
+    label: grat?.name ?? "Server gratuity",
+    description: `One server per 25 guests. ${servers} server${servers === 1 ? "" : "s"} × $${perServerDollars}.`,
+    qty: servers,
+    unitCents: perServerCents,
+  });
+
+  if (input.chargeTemplateIds.length) {
+    const templates = gratTemplates.filter((t) => input.chargeTemplateIds.includes(t.id));
     for (const t of templates) {
-      const qty = t.unit === "PER_PERSON" ? guestCount : 1;
+      if (isAutoGratuity(t)) continue;
+      const qty = chargeQty(t.unit, guestCount);
       lines.push({
         type: t.unit === "PER_PERSON" ? "PER_PERSON" : "FLAT",
         label: t.name,

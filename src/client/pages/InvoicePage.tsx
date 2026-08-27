@@ -2,9 +2,15 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, type ChargeTemplate, type InvoiceLine } from "../api";
 import { Money } from "../components/ui";
+import { LINE_TYPES } from "../../shared/constants";
+import { humanizeCode } from "../../shared/labels";
+import { chargeQty, isAutoGratuity } from "../../shared/service";
 import {
   calculateInvoice,
+  centsToDollars,
+  dollarsToCents,
   formatMoney,
+  invoiceLineAmountCents,
   type InvoiceLineInput,
   type InvoiceTotals,
 } from "../../shared/pricing";
@@ -139,7 +145,7 @@ export function InvoicePage() {
               <th className="px-3 py-2">Type</th>
               <th className="px-3 py-2">Label</th>
               <th className="px-3 py-2">Qty</th>
-              <th className="px-3 py-2">Unit ¢</th>
+              <th className="px-3 py-2">Price</th>
               <th className="px-3 py-2">Amount</th>
               <th />
             </tr>
@@ -153,11 +159,11 @@ export function InvoicePage() {
                     value={line.type}
                     onChange={(e) => update(i, { type: e.target.value })}
                   >
-                    <option>PER_PERSON</option>
-                    <option>FLAT</option>
-                    <option>PERCENT_DISCOUNT</option>
-                    <option>FIXED_DISCOUNT</option>
-                    <option>TBD</option>
+                    {LINE_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {humanizeCode(type)}
+                      </option>
+                    ))}
                   </select>
                 </td>
                 <td className="px-3 py-2">
@@ -182,26 +188,43 @@ export function InvoicePage() {
                   />
                 </td>
                 <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    className="w-24 rounded border border-line px-2 py-1"
-                    value={line.unitCents}
-                    onChange={(e) => update(i, { unitCents: Number(e.target.value) })}
-                  />
-                  {line.type === "PERCENT_DISCOUNT" ? (
-                    <div className="text-[10px] text-ink/50">1000 = 10%</div>
-                  ) : null}
+                  <div className="flex items-center gap-1">
+                    {line.type === "PERCENT_DISCOUNT" ? null : (
+                      <span className="text-ink/50">$</span>
+                    )}
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="w-24 rounded border border-line px-2 py-1"
+                      value={centsToDollars(line.unitCents)}
+                      onChange={(e) =>
+                        update(i, { unitCents: dollarsToCents(e.target.value) })
+                      }
+                      disabled={line.type === "TBD"}
+                    />
+                    {line.type === "PERCENT_DISCOUNT" ? (
+                      <span className="text-ink/50">%</span>
+                    ) : null}
+                  </div>
+                  <div className="mt-1 text-[10px] text-ink/50">
+                    {line.type === "PERCENT_DISCOUNT"
+                      ? "e.g. 10 for 10% off"
+                      : line.type === "PER_PERSON"
+                        ? "Dollars per person"
+                        : line.type === "TBD"
+                          ? "Priced later"
+                          : "Dollars"}
+                  </div>
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">
                   {line.type === "TBD"
-                    ? "TBD"
-                    : formatMoney(
-                        line.type === "PERCENT_DISCOUNT"
-                          ? 0
-                          : line.type === "FIXED_DISCOUNT"
-                            ? -Math.abs(line.unitCents * line.qty)
-                            : line.unitCents * line.qty,
-                      )}
+                    ? "Quote later"
+                    : invoiceLineAmountCents(lines as InvoiceLineInput[], i, ev.guestCount) === 0
+                      ? "Included"
+                      : formatMoney(
+                          invoiceLineAmountCents(lines as InvoiceLineInput[], i, ev.guestCount),
+                        )}
                 </td>
                 <td className="px-3 py-2">
                   <button
@@ -267,22 +290,27 @@ export function InvoicePage() {
         >
           Add $ discount
         </button>
-        {charges.map((t) => (
+        {charges
+          .filter((t) => !isAutoGratuity(t))
+          .map((t) => (
           <button
             key={t.id}
             type="button"
             className="rounded-full border border-line px-3 py-1.5 text-sm"
             onClick={() =>
-              setLines((cur) => [
-                ...cur,
-                {
-                  type: t.unit === "PER_PERSON" ? "PER_PERSON" : "FLAT",
-                  label: t.name,
-                  description: t.description,
-                  qty: t.unit === "PER_PERSON" ? ev.guestCount : 1,
-                  unitCents: t.amountCents,
-                },
-              ])
+              setLines((cur) => {
+                if (cur.some((line) => line.label === t.name)) return cur;
+                return [
+                  ...cur,
+                  {
+                    type: t.unit === "PER_PERSON" ? "PER_PERSON" : "FLAT",
+                    label: t.name,
+                    description: t.description,
+                    qty: chargeQty(t.unit, ev.guestCount),
+                    unitCents: t.amountCents,
+                  },
+                ];
+              })
             }
           >
             + {t.name}

@@ -7,17 +7,17 @@ const HERO_IMAGE =
 const PACKAGES = [
   {
     name: "Grazing table",
-    price: "From $8 pp",
+    price: "From $8 per person",
     blurb: "A styled flat-lay spread for guests as they arrive.",
   },
   {
     name: "Dinner buffet",
-    price: "$18 pp",
+    price: "$18 per person",
     blurb: "Two meats, two sides, and bread. Salad is $3 extra.",
   },
   {
     name: "Passed hors d'oeuvres",
-    price: "From $12 pp",
+    price: "From $12 per person",
     blurb: "Passed bites with optional add-ons like shrimp or filet.",
   },
 ];

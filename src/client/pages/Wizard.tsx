@@ -2,7 +2,21 @@ import { useEffect, useMemo, useState, type InputHTMLAttributes } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, publicApi, type Catalog, type MenuItem, type Package } from "../api";
 import { Money, Photo } from "../components/ui";
-import { calculateInvoice, formatMoneyShort } from "../../shared/pricing";
+import { calculateInvoice, formatMoney, formatMoneyShort, formatPriceWithUnit } from "../../shared/pricing";
+import {
+  CAKE_DEFAULT_LAYERS,
+  CAKE_FLAVORS,
+  cakeDescription,
+  cakePriceCents,
+  chargeQty,
+  gratuityCentsForGuests,
+  GRATUITY_PER_SERVER_CENTS,
+  isAutoGratuity,
+  serverCountForGuests,
+  TABLE_SETTINGS_INCLUDED_NAMES,
+  TABLE_SETTINGS_SLUG,
+  type CakeFlavorId,
+} from "../../shared/service";
 
 type Dinner = { meatIds: string[]; sideIds: string[]; breadId: string | null };
 
@@ -17,6 +31,7 @@ type Step =
   | "desserts"
   | "cake"
   | "drinks"
+  | "table"
   | "service"
   | "review";
 
@@ -26,39 +41,20 @@ const STEP_COPY: Record<Step, { title: string; hint: string }> = {
   meats: { title: "Pick 2 meats", hint: "Dinner includes two." },
   sides: { title: "Pick 2 sides", hint: "Dinner includes two." },
   bread: { title: "Pick your bread", hint: "Choose one." },
-  salads: { title: "Add a salad?", hint: "Optional · $3 pp each. Skip if none." },
-  addons: { title: "Hors d'oeuvre add-ons", hint: "On top of the $12 pp package." },
+  salads: { title: "Add a salad?", hint: "Optional · $3 per person each. Skip if none." },
+  addons: { title: "Hors d'oeuvre add-ons", hint: "On top of the $12 per person package." },
   desserts: { title: "Dessert bar", hint: "Pick what you want listed. Price comes later." },
-  cake: { title: "Wedding cake", hint: "Tap a starting style." },
+  cake: { title: "Wedding cake", hint: "$92.50 per layer. Two layers is $185." },
   drinks: { title: "Pick 2 drinks", hint: "Water is always included." },
-  service: { title: "Service extras", hint: "Setup, servers, travel — tap to add." },
+  table: {
+    title: "Table settings",
+    hint: "Tap what you want on the tables. Priced items add to the total.",
+  },
+  service: { title: "Service extras", hint: "Gratuity is already in the total — one server per 25 guests." },
   review: { title: "Looking good?", hint: "Confirm, then submit." },
 };
 
 const GUEST_PRESETS = [25, 50, 75, 100, 125, 150, 200];
-
-const CAKE_OPTIONS = [
-  {
-    id: "vanilla",
-    label: "Vanilla / vanilla buttercream",
-    notes: "2 tier / 6 layer. Vanilla cake / vanilla buttercream.",
-  },
-  {
-    id: "chocolate",
-    label: "Chocolate / chocolate buttercream",
-    notes: "2 tier / 6 layer. Chocolate cake / chocolate buttercream.",
-  },
-  {
-    id: "red-velvet",
-    label: "Red velvet / cream cheese",
-    notes: "2 tier / 6 layer. Red velvet / cream cheese frosting.",
-  },
-  {
-    id: "undecided",
-    label: "Still deciding",
-    notes: "2 tier / 6 layer. Flavor to be confirmed.",
-  },
-];
 
 type WizardProps = {
   mode?: "admin" | "client";
@@ -83,6 +79,9 @@ type WizardProps = {
     dessertIds?: string[];
     drinkIds?: string[];
     cakeNotes?: string;
+    cakeLayers?: number;
+    cakeFlavor?: string;
+    tableSettingIds?: string[];
     chargeTemplateIds?: string[];
   };
 };
@@ -118,8 +117,15 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
   const [addonIds, setAddonIds] = useState<string[]>(initial?.addonIds ?? []);
   const [dessertIds, setDessertIds] = useState<string[]>(initial?.dessertIds ?? []);
   const [drinkIds, setDrinkIds] = useState<string[]>(initial?.drinkIds ?? []);
-  const [cakeNotes, setCakeNotes] = useState(
-    initial?.cakeNotes ?? CAKE_OPTIONS[0].notes,
+  const [cakeLayers, setCakeLayers] = useState(initial?.cakeLayers ?? CAKE_DEFAULT_LAYERS);
+  const [cakeFlavor, setCakeFlavor] = useState<CakeFlavorId>(
+    (initial?.cakeFlavor as CakeFlavorId) ?? "vanilla",
+  );
+  const [tableSettingIds, setTableSettingIds] = useState<string[]>(
+    initial?.tableSettingIds ?? [],
+  );
+  const [tableDefaultsReady, setTableDefaultsReady] = useState(
+    initial?.tableSettingIds != null,
   );
   const [chargeTemplateIds, setChargeTemplateIds] = useState<string[]>(
     initial?.chargeTemplateIds ?? [],
@@ -129,6 +135,21 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
     const load = client ? publicApi<Catalog>("/catalog") : api<Catalog>("/catalog");
     load.then(setCatalog);
   }, [client]);
+
+  useEffect(() => {
+    if (!catalog || tableDefaultsReady) return;
+    const table = catalog.categories.find((c) => c.slug === TABLE_SETTINGS_SLUG);
+    if (!table) {
+      setTableDefaultsReady(true);
+      return;
+    }
+    setTableSettingIds(
+      table.items
+        .filter((item) => item.active && TABLE_SETTINGS_INCLUDED_NAMES.includes(item.name))
+        .map((item) => item.id),
+    );
+    setTableDefaultsReady(true);
+  }, [catalog, tableDefaultsReady]);
 
   const itemsByCat = useMemo(() => {
     const map: Record<string, MenuItem[]> = {};
@@ -153,6 +174,7 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
     if (packageSlugs.includes("dessert-bar")) s.push("desserts");
     if (packageSlugs.includes("cake")) s.push("cake");
     if (packageSlugs.includes("dinner") || packageSlugs.includes("hors-doeuvres")) s.push("drinks");
+    s.push("table");
     if (!client) s.push("service");
     s.push("review");
     return s;
@@ -167,6 +189,13 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
       if (!p) continue;
       if (p.priceCents == null) {
         lines.push({ type: "TBD" as const, label: p.name, qty: g, unitCents: 0 });
+      } else if (p.slug === "cake" || p.priceUnit === "PER_LAYER") {
+        lines.push({
+          type: "FLAT" as const,
+          label: p.name,
+          qty: cakeLayers,
+          unitCents: p.priceCents,
+        });
       } else if (p.priceUnit === "FLAT") {
         lines.push({ type: "FLAT" as const, label: p.name, qty: 1, unitCents: p.priceCents });
       } else {
@@ -195,13 +224,34 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
         });
       }
     }
+    for (const id of tableSettingIds) {
+      const item = itemsByCat[TABLE_SETTINGS_SLUG]?.find((i) => i.id === id);
+      if (item?.priceCents != null) {
+        const perPerson = item.priceUnit === "PER_PERSON";
+        lines.push({
+          type: perPerson ? ("PER_PERSON" as const) : ("FLAT" as const),
+          label: item.name,
+          qty: perPerson ? g : 1,
+          unitCents: item.priceCents,
+        });
+      }
+    }
+    const servers = serverCountForGuests(g);
+    const grat = catalog.charges.find((c) => isAutoGratuity(c));
+    const perServer = grat?.amountCents ?? GRATUITY_PER_SERVER_CENTS;
+    lines.push({
+      type: "FLAT" as const,
+      label: grat?.name ?? "Server gratuity",
+      qty: servers,
+      unitCents: perServer,
+    });
     for (const id of chargeTemplateIds) {
       const t = catalog.charges.find((c) => c.id === id);
-      if (!t) continue;
+      if (!t || isAutoGratuity(t)) continue;
       lines.push({
         type: t.unit === "PER_PERSON" ? ("PER_PERSON" as const) : ("FLAT" as const),
         label: t.name,
-        qty: t.unit === "PER_PERSON" ? g : 1,
+        qty: chargeQty(t.unit, g),
         unitCents: t.amountCents,
       });
     }
@@ -212,7 +262,7 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
       paidCents: 0,
       depositCents: catalog.settings.depositCents,
     });
-  }, [catalog, packageSlugs, pkgMap, saladIds, addonIds, chargeTemplateIds, guestCount, itemsByCat]);
+  }, [catalog, packageSlugs, pkgMap, saladIds, addonIds, tableSettingIds, chargeTemplateIds, guestCount, itemsByCat, cakeLayers]);
 
   const safeStep: Step = steps.includes(step) ? step : "event";
   const idx = steps.indexOf(safeStep);
@@ -287,7 +337,10 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
       addonIds,
       dessertIds,
       drinkIds,
-      cakeNotes,
+      cakeNotes: cakeDescription(cakeLayers, cakeFlavor),
+      cakeLayers,
+      cakeFlavor,
+      tableSettingIds,
       chargeTemplateIds: client ? [] : chargeTemplateIds,
     };
     try {
@@ -441,7 +494,7 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
                       ? "Quoted later"
                       : p.priceUnit === "FLAT"
                         ? `${formatMoneyShort(p.priceCents)} starting`
-                        : `${formatMoneyShort(p.priceCents)} pp`,
+                        : formatPriceWithUnit(p.priceCents, p.priceUnit),
                 }))}
               selected={packageSlugs}
               onToggle={togglePkg}
@@ -522,25 +575,63 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
           )}
 
           {safeStep === "cake" && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {CAKE_OPTIONS.map((opt) => {
-                const on = cakeNotes === opt.notes;
-                return (
+            <div className="space-y-8">
+              <div className="mx-auto max-w-lg rounded-3xl border border-line bg-paper p-6">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm text-ink/60">Layers</div>
+                    <div className="font-serif text-2xl">
+                      {cakeLayers} {cakeLayers === 1 ? "layer" : "layers"}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-ink/60">Cake total</div>
+                    <div className="font-serif text-2xl">
+                      {formatMoney(cakePriceCents(cakeLayers))}
+                    </div>
+                    <div className="text-xs text-ink/50">$92.50 per layer</div>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-center gap-4">
                   <button
-                    key={opt.id}
                     type="button"
-                    onClick={() => setCakeNotes(opt.notes)}
-                    className={`rounded-2xl border px-5 py-6 text-left transition ${
-                      on
-                        ? "border-sage bg-paper ring-2 ring-sage"
-                        : "border-line bg-paper hover:border-sage/40"
-                    }`}
+                    className="h-12 w-12 rounded-full border border-line text-xl"
+                    onClick={() => setCakeLayers((n) => Math.max(1, n - 1))}
                   >
-                    <div className="font-serif text-xl">{opt.label}</div>
-                    <p className="mt-2 text-sm text-ink/55">Starting at $185</p>
+                    −
                   </button>
-                );
-              })}
+                  <span className="w-8 text-center text-lg font-medium">{cakeLayers}</span>
+                  <button
+                    type="button"
+                    className="h-12 w-12 rounded-full border border-line text-xl"
+                    onClick={() => setCakeLayers((n) => Math.min(12, n + 1))}
+                  >
+                    +
+                  </button>
+                </div>
+                <p className="mt-3 text-center text-sm text-ink/55">
+                  Two layers is $185. Add or remove layers as you like.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {CAKE_FLAVORS.map((opt) => {
+                  const on = cakeFlavor === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setCakeFlavor(opt.id)}
+                      className={`rounded-2xl border px-5 py-6 text-left transition ${
+                        on
+                          ? "border-sage bg-paper ring-2 ring-sage"
+                          : "border-line bg-paper hover:border-sage/40"
+                      }`}
+                    >
+                      <div className="font-serif text-xl">{opt.label}</div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -553,10 +644,55 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
             />
           )}
 
+          {safeStep === "table" && (
+            (itemsByCat[TABLE_SETTINGS_SLUG] ?? []).length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-line bg-paper p-8 text-center text-sm text-ink/60">
+                No table setting items yet. Add plates, silverware, and linens under Menu → Table
+                settings.
+              </p>
+            ) : (
+            <PickGrid
+              items={toCards(itemsByCat[TABLE_SETTINGS_SLUG] ?? [], true).map((item) => ({
+                ...item,
+                priceLabel: item.priceLabel ?? "No extra charge",
+              }))}
+              selected={tableSettingIds}
+              onToggle={(id) =>
+                setTableSettingIds((cur) =>
+                  cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id],
+                )
+              }
+              selectedHint={
+                tableSettingIds.length
+                  ? `${tableSettingIds.length} selected`
+                  : "Pick what you want on the tables"
+              }
+              allowEmpty
+            />
+            )
+          )}
+
           {safeStep === "service" && (
             <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-sage bg-paper p-5 ring-2 ring-sage">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-serif text-xl">Server gratuity</div>
+                    <p className="mt-1 text-sm text-ink/55">
+                      One server per 25 guests. {serverCountForGuests(guestCount)} server
+                      {serverCountForGuests(guestCount) === 1 ? "" : "s"} for {guestCount} guests.
+                    </p>
+                  </div>
+                  <Money
+                    cents={gratuityCentsForGuests(
+                      guestCount,
+                      catalog.charges.find((c) => isAutoGratuity(c))?.amountCents,
+                    )}
+                  />
+                </div>
+              </div>
               {catalog.charges
-                .filter((t) => t.active)
+                .filter((t) => t.active && !isAutoGratuity(t))
                 .map((t) => {
                   const on = chargeTemplateIds.includes(t.id);
                   return (
@@ -597,13 +733,15 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
               </p>
               <p className="mt-1 text-sm text-ink/55">{contact}</p>
               <ul className="mt-5 space-y-2 text-sm">
-                {packageSlugs.map((s) => (
+                {packageSlugs
+                  .filter((s) => s !== "cake")
+                  .map((s) => (
                   <li key={s} className="flex justify-between gap-3 border-b border-line py-2">
                     <span>{pkgMap[s]?.name ?? s}</span>
                     <span className="text-ink/50">
                       {pkgMap[s]?.priceCents == null
-                        ? "TBD"
-                        : formatMoneyShort(pkgMap[s]!.priceCents!)}
+                        ? "Quoted later"
+                        : formatPriceWithUnit(pkgMap[s]!.priceCents!, pkgMap[s]!.priceUnit)}
                     </span>
                   </li>
                 ))}
@@ -624,9 +762,46 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
                 ) : null}
                 {saladIds.map((id) => (
                   <li key={id} className="text-ink/70">
-                    Salad · {itemsByCat.salads?.find((x) => x.id === id)?.name} · $3 pp
+                    Salad · {itemsByCat.salads?.find((x) => x.id === id)?.name} · $3 per person
                   </li>
                 ))}
+                {packageSlugs.includes("cake") ? (
+                  <li className="flex justify-between gap-3 border-b border-line py-2">
+                    <span>
+                      Cake · {cakeLayers} {cakeLayers === 1 ? "layer" : "layers"} ·{" "}
+                      {CAKE_FLAVORS.find((f) => f.id === cakeFlavor)?.label}
+                    </span>
+                    <span className="text-ink/50">{formatMoney(cakePriceCents(cakeLayers))}</span>
+                  </li>
+                ) : null}
+                {tableSettingIds.map((id) => {
+                  const item = itemsByCat[TABLE_SETTINGS_SLUG]?.find((x) => x.id === id);
+                  if (!item) return null;
+                  return (
+                    <li key={id} className="flex justify-between gap-3 text-ink/70">
+                      <span>Table · {item.name}</span>
+                      <span className="text-ink/50">
+                        {item.priceCents == null
+                          ? "No extra charge"
+                          : formatPriceWithUnit(item.priceCents, item.priceUnit)}
+                      </span>
+                    </li>
+                  );
+                })}
+                <li className="flex justify-between gap-3 border-b border-line py-2">
+                  <span>
+                    Server gratuity · {serverCountForGuests(guestCount)} server
+                    {serverCountForGuests(guestCount) === 1 ? "" : "s"}
+                  </span>
+                  <span className="text-ink/50">
+                    {formatMoney(
+                      gratuityCentsForGuests(
+                        guestCount,
+                        catalog.charges.find((c) => isAutoGratuity(c))?.amountCents,
+                      ),
+                    )}
+                  </span>
+                </li>
               </ul>
               {client ? (
                 <p className="mt-4 text-sm text-ink/65">
@@ -646,7 +821,7 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
             <div className="font-medium">
               {estimate ? <Money cents={estimate.totalCents} /> : "—"}
               {packageSlugs.includes("dessert-bar") ? (
-                <span className="ml-2 text-xs font-normal text-ink/50">+ dessert TBD</span>
+                <span className="ml-2 text-xs font-normal text-ink/50">+ dessert quoted later</span>
               ) : null}
             </div>
           </div>
@@ -676,7 +851,10 @@ export function Wizard({ mode = "admin", publicToken, initial, onSubmitted }: Wi
                 className="rounded-full bg-sage px-5 py-2.5 text-sm text-white disabled:opacity-40"
                 onClick={goNext}
               >
-                {safeStep === "salads" && saladIds.length === 0 ? "Skip" : "Continue"}
+                {(safeStep === "salads" && saladIds.length === 0) ||
+                (safeStep === "table" && tableSettingIds.length === 0)
+                  ? "Skip"
+                  : "Continue"}
               </button>
             )}
           </div>
@@ -702,7 +880,7 @@ function toCards(items: MenuItem[], withPrice = false): CardItem[] {
     photoUrl: item.photoUrl,
     priceLabel:
       withPrice && item.priceCents != null
-        ? `${formatMoneyShort(item.priceCents)} pp`
+        ? formatPriceWithUnit(item.priceCents, item.priceUnit)
         : undefined,
   }));
 }

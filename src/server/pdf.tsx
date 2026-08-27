@@ -94,20 +94,25 @@ function PdfDoc({ invoice, totals, settings }: Payload) {
           const qty = line.type === "TBD" ? "—" : String(line.qty);
           const total =
             line.type === "TBD"
-              ? "TBD"
+              ? "Quote later"
               : line.type === "PERCENT_DISCOUNT"
                 ? `${(line.unitCents / 100).toFixed(1)}%`
-                : formatMoney(
-                    line.type === "FIXED_DISCOUNT"
-                      ? -Math.abs(line.unitCents * line.qty)
-                      : line.unitCents * line.qty,
-                  );
+                : line.type !== "FIXED_DISCOUNT" && line.unitCents === 0
+                  ? "Included"
+                  : formatMoney(
+                      line.type === "FIXED_DISCOUNT"
+                        ? -Math.abs(line.unitCents * line.qty)
+                        : line.unitCents * line.qty,
+                    );
           return (
             <View key={line.id} style={styles.tableRow} wrap={false}>
               <View style={styles.colDesc}>
                 <Text>
                   {line.label}
-                  {line.type === "PER_PERSON" ? `  ${formatMoney(line.unitCents)} pp` : ""}
+                  {line.type === "PER_PERSON" ? `  ${formatMoney(line.unitCents)} per person` : ""}
+                  {line.type !== "PER_PERSON" && line.qty > 1 && line.unitCents
+                    ? `  ${formatMoney(line.unitCents)} each`
+                    : ""}
                 </Text>
                 {line.description ? <Text style={styles.desc}>{line.description}</Text> : null}
               </View>

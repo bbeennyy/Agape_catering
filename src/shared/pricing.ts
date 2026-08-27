@@ -41,6 +41,26 @@ export function lineAmountCents(
   return line.unitCents * qty;
 }
 
+export function invoiceLineAmountCents(
+  lines: InvoiceLineInput[],
+  index: number,
+  guestCount: number,
+): number {
+  const line = lines[index];
+  if (line.type === "TBD") return 0;
+  if (line.type === "PERCENT_DISCOUNT") {
+    let running = 0;
+    for (const prev of lines) {
+      if (prev.type === "TBD" || prev.type === "PERCENT_DISCOUNT" || prev.type === "FIXED_DISCOUNT") {
+        continue;
+      }
+      running += lineAmountCents(prev, guestCount, 0);
+    }
+    return lineAmountCents(line, guestCount, running);
+  }
+  return lineAmountCents(line, guestCount, 0);
+}
+
 export function calculateInvoice(opts: {
   lines: InvoiceLineInput[];
   guestCount: number;
@@ -119,4 +139,26 @@ export function formatMoneyShort(cents: number) {
     return `$${cents / 100}`;
   }
   return formatMoney(cents);
+}
+
+/** Admin inputs use dollars; storage stays in cents. */
+export function centsToDollars(cents: number): number {
+  return cents / 100;
+}
+
+export function dollarsToCents(dollars: number | string): number {
+  const n = typeof dollars === "string" ? Number(dollars) : dollars;
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100);
+}
+
+export function formatPriceWithUnit(cents: number | null | undefined, unit?: string | null) {
+  if (cents == null) return "Quoted later";
+  const money = formatMoneyShort(cents);
+  if (unit === "PER_PERSON") return `${money} per person`;
+  if (unit === "PER_UNIT") return `${money} per unit`;
+  if (unit === "PER_LAYER") return `${money} per layer`;
+  if (unit === "PER_SERVER") return `${money} per server`;
+  if (unit === "NONE") return "Included";
+  return money;
 }

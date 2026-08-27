@@ -1,13 +1,16 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { api, uploadFile, type Catalog, type MenuItem } from "../api";
 import { Photo } from "../components/ui";
-import { formatMoneyShort } from "../../shared/pricing";
+import { PRICE_UNITS } from "../../shared/constants";
+import { humanizeCode } from "../../shared/labels";
+import { dollarsToCents } from "../../shared/pricing";
 
 export function MenuSettings() {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catId, setCatId] = useState<string>("");
   const [editing, setEditing] = useState<MenuItem | null>(null);
   const [newName, setNewName] = useState("");
+  const [newCat, setNewCat] = useState("");
   const [msg, setMsg] = useState("");
 
   async function reload() {
@@ -43,7 +46,7 @@ export function MenuSettings() {
       </p>
       {msg ? <p className="mt-2 text-sm text-sage">{msg}</p> : null}
 
-      <div className="mt-6 flex flex-wrap gap-2">
+      <div className="mt-6 flex flex-wrap items-center gap-2">
         {catalog.categories.map((c) => (
           <button
             key={c.id}
@@ -56,6 +59,31 @@ export function MenuSettings() {
             {c.name}
           </button>
         ))}
+        <form
+          className="flex gap-2"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!newCat.trim()) return;
+            const row = await api<{ id: string }>("/categories", {
+              method: "POST",
+              body: JSON.stringify({ name: newCat.trim() }),
+            });
+            setNewCat("");
+            await reload();
+            setCatId(row.id);
+            setMsg("Category added — add items below");
+          }}
+        >
+          <input
+            className="rounded-lg border border-line px-3 py-1.5 text-sm"
+            placeholder="New category"
+            value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+          />
+          <button className="rounded-full border border-line px-3 py-1.5 text-sm" type="submit">
+            Add category
+          </button>
+        </form>
       </div>
 
       <div className="mt-6 rounded-2xl border border-line bg-paper p-4">
@@ -69,23 +97,46 @@ export function MenuSettings() {
                 <input
                   type="number"
                   step="0.01"
+                  min={0}
                   className="ml-2 w-28 rounded border border-line px-2 py-1"
                   defaultValue={p.priceCents == null ? "" : p.priceCents / 100}
                   onBlur={async (e) => {
                     const v = e.target.value;
                     await api(`/packages/${p.id}`, {
                       method: "PATCH",
-                      body: JSON.stringify({ priceCents: v === "" ? null : Math.round(Number(v) * 100) }),
+                      body: JSON.stringify({ priceCents: v === "" ? null : dollarsToCents(v) }),
                     });
                     setMsg("Package price saved");
                   }}
                 />
               </label>
-              <span className="text-xs text-ink/50">{p.priceUnit}</span>
+              <label className="text-sm">
+                Billed
+                <select
+                  className="ml-2 rounded border border-line px-2 py-1"
+                  defaultValue={p.priceUnit}
+                  onChange={async (e) => {
+                    await api(`/packages/${p.id}`, {
+                      method: "PATCH",
+                      body: JSON.stringify({ priceUnit: e.target.value }),
+                    });
+                    setMsg("Package billing saved");
+                  }}
+                >
+                  {PRICE_UNITS.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {humanizeCode(unit)}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           ))}
         </div>
-      <p className="mt-2 text-xs text-ink/50">Dinner should stay 18. Empty dessert price means TBD.</p>
+      <p className="mt-2 text-xs text-ink/50">
+        Dinner should stay 18. Cake is $92.50 per layer (two layers = $185). Empty item price means
+        no extra charge — same for table settings.
+      </p>
       </div>
 
       {category ? (
@@ -130,21 +181,62 @@ export function MenuSettings() {
                     onSave={saveItem}
                   />
                 ) : (
-                  <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                    <div>
+                  <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-40 flex-1">
                       <div className="font-medium">{item.name}</div>
                       <div className="text-xs text-ink/55">{item.description || "No description"}</div>
-                      <div className="mt-1 text-sm text-terra">
-                        {item.priceCents == null ? "Included / no extra price" : `${formatMoneyShort(item.priceCents)} ${item.priceUnit === "FLAT" ? "" : "pp"}`}
-                      </div>
                     </div>
-                    <div className="flex gap-2 text-sm">
-                      <button type="button" className="text-sage" onClick={() => setEditing(item)}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="text-sm">
+                        Price $
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          className="ml-2 w-24 rounded border border-line px-2 py-1"
+                          defaultValue={item.priceCents == null ? "" : item.priceCents / 100}
+                          key={`${item.id}-price-${item.priceCents}`}
+                          onBlur={async (e) => {
+                            const v = e.target.value;
+                            await api(`/items/${item.id}`, {
+                              method: "PATCH",
+                              body: JSON.stringify({
+                                priceCents: v === "" ? null : dollarsToCents(v),
+                              }),
+                            });
+                            setMsg("Price saved");
+                            await reload();
+                          }}
+                        />
+                      </label>
+                      <label className="text-sm">
+                        Billed
+                        <select
+                          className="ml-2 rounded border border-line px-2 py-1"
+                          defaultValue={item.priceUnit}
+                          key={`${item.id}-unit-${item.priceUnit}`}
+                          onChange={async (e) => {
+                            await api(`/items/${item.id}`, {
+                              method: "PATCH",
+                              body: JSON.stringify({ priceUnit: e.target.value }),
+                            });
+                            setMsg("Billing saved");
+                            await reload();
+                          }}
+                        >
+                          {PRICE_UNITS.map((unit) => (
+                            <option key={unit} value={unit}>
+                              {humanizeCode(unit)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button type="button" className="text-sm text-sage" onClick={() => setEditing(item)}>
                         Edit
                       </button>
                       <button
                         type="button"
-                        className="text-terra"
+                        className="text-sm text-terra"
                         onClick={async () => {
                           if (!confirm(`Delete ${item.name}?`)) return;
                           await api(`/items/${item.id}`, { method: "DELETE" });
@@ -226,20 +318,35 @@ function ItemForm({
         value={draft.description}
         onChange={(e) => setDraft({ ...draft, description: e.target.value })}
       />
-      <label className="text-sm sm:col-span-2">
+      <label className="text-sm">
         Price $ (empty = none)
         <input
           className="ml-2 w-28 rounded border border-line px-2 py-1"
           type="number"
           step="0.01"
+          min={0}
           value={draft.priceCents == null ? "" : draft.priceCents / 100}
           onChange={(e) =>
             setDraft({
               ...draft,
-              priceCents: e.target.value === "" ? null : Math.round(Number(e.target.value) * 100),
+              priceCents: e.target.value === "" ? null : dollarsToCents(e.target.value),
             })
           }
         />
+      </label>
+      <label className="text-sm">
+        Billed as
+        <select
+          className="ml-2 rounded border border-line px-2 py-1"
+          value={draft.priceUnit}
+          onChange={(e) => setDraft({ ...draft, priceUnit: e.target.value })}
+        >
+          {PRICE_UNITS.map((unit) => (
+            <option key={unit} value={unit}>
+              {humanizeCode(unit)}
+            </option>
+          ))}
+        </select>
       </label>
 
       <div className="sm:col-span-2">

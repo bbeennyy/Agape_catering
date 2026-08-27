@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { publicApi } from "../api";
 import { ClientShell } from "../components/ClientShell";
 import { Money } from "../components/ui";
-import { formatMoney, type InvoiceTotals } from "../../shared/pricing";
+import { formatMoney, formatPriceWithUnit, invoiceLineAmountCents, type InvoiceLineInput, type InvoiceTotals } from "../../shared/pricing";
 import { Wizard } from "./Wizard";
 
 type PublicEvent = {
@@ -55,6 +55,9 @@ type PublicEvent = {
     dessertIds?: string[];
     drinkIds?: string[];
     cakeNotes?: string;
+    cakeLayers?: number;
+    cakeFlavor?: string;
+    tableSettingIds?: string[];
     chargeTemplateIds?: string[];
   } | null;
 };
@@ -155,18 +158,34 @@ export function ClientPortal() {
                     {line.description ? (
                       <div className="mt-1 text-xs text-ink/55">{line.description}</div>
                     ) : null}
+                    {line.type === "PER_PERSON" && line.unitCents ? (
+                      <div className="mt-1 text-xs text-ink/55">
+                        {formatPriceWithUnit(line.unitCents, line.type)}
+                      </div>
+                    ) : null}
+                    {line.type === "PERCENT_DISCOUNT" ? (
+                      <div className="mt-1 text-xs text-ink/55">
+                        {line.unitCents / 100}% off
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3">{line.type === "TBD" ? "—" : line.qty}</td>
                   <td className="px-4 py-3">
                     {line.type === "TBD"
-                      ? "TBD"
-                      : formatMoney(
-                          line.type === "FIXED_DISCOUNT"
-                            ? -Math.abs(line.unitCents * line.qty)
-                            : line.type === "PERCENT_DISCOUNT"
-                              ? 0
-                              : line.unitCents * line.qty,
-                        )}
+                      ? "Quote later"
+                      : invoiceLineAmountCents(
+                            data.invoice!.lines as InvoiceLineInput[],
+                            i,
+                            data.event.guestCount,
+                          ) === 0
+                        ? "Included"
+                        : formatMoney(
+                            invoiceLineAmountCents(
+                              data.invoice!.lines as InvoiceLineInput[],
+                              i,
+                              data.event.guestCount,
+                            ),
+                          )}
                   </td>
                 </tr>
               ))}

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import { EventCalendar } from "../components/EventCalendar";
 import { Money } from "../components/ui";
+import { humanizeCode } from "../../shared/labels";
 import type { InvoiceTotals } from "../../shared/pricing";
 
 type Row = {
@@ -352,16 +353,7 @@ function Status({
   dueInDays: number | null;
   balance: number;
 }) {
-  const label =
-    status === "invite"
-      ? "Waiting on client"
-      : status === "request"
-        ? "Needs review"
-        : status === "quoted"
-          ? "Proposal sent"
-          : status === "booked"
-            ? "Booked"
-            : status;
+  const label = humanizeCode(status);
   return (
     <div>
       <div>{label}</div>
