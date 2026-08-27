@@ -220,7 +220,11 @@ export function InvoicePage() {
                 <td className="px-3 py-2 whitespace-nowrap">
                   {line.type === "TBD"
                     ? "Quote later"
-                    : formatMoney(invoiceLineAmountCents(lines as InvoiceLineInput[], i, ev.guestCount))}
+                    : invoiceLineAmountCents(lines as InvoiceLineInput[], i, ev.guestCount) === 0
+                      ? "Included"
+                      : formatMoney(
+                          invoiceLineAmountCents(lines as InvoiceLineInput[], i, ev.guestCount),
+                        )}
                 </td>
                 <td className="px-3 py-2">
                   <button
